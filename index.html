@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>KiosKu Pro - Kasir, Stok, Excel & Laba</title>
+    <title>KiosKu Pro - Kasir, Stok, Excel & Memori Tersimpan</title>
     <!-- SheetJS (XLSX) untuk export/import Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -64,7 +64,7 @@
         /* Kartu Ringkasan Keuangan */
         .summary-cards {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 18px;
             margin-bottom: 28px;
         }
@@ -74,6 +74,7 @@
             padding: 18px 20px;
             box-shadow: 0 5px 14px rgba(0,0,0,0.05);
             border-left: 6px solid;
+            transition: all 0.2s;
         }
         .card-title {
             font-size: 0.85rem;
@@ -98,6 +99,7 @@
         .card-3 { border-left-color: #10b981; }
         .card-4 { border-left-color: #3b82f6; }
         .card-5 { border-left-color: #ef4444; }
+        .card-memory { border-left-color: #8b5cf6; background: #faf5ff; }
 
         /* Layout 2 kolom utama */
         .two-columns {
@@ -168,7 +170,7 @@
         .total-line { font-size: 1.6rem; font-weight: 800; color: #145c48; }
         .btn-pay { background: #2b7a62; width: 100%; padding: 14px; border-radius: 40px; font-weight: bold; color: white; border: none; margin-top: 12px; cursor: pointer; font-size: 1rem; }
 
-        /* Stok panel + tambah barang + area excel */
+        /* Stok panel */
         .stok-header {
             display: flex;
             justify-content: space-between;
@@ -190,7 +192,7 @@
             padding: 8px 16px;
             border-radius: 60px;
         }
-        .excel-actions button {
+        .excel-actions button, .excel-actions label {
             background: #1e40af;
             border: none;
             padding: 6px 16px;
@@ -200,17 +202,26 @@
             cursor: pointer;
             font-size: 0.8rem;
         }
-        .excel-actions label {
-            background: #4b5563;
-            padding: 6px 16px;
-            border-radius: 40px;
-            color: white;
-            font-weight: 500;
-            cursor: pointer;
-            font-size: 0.8rem;
-        }
+        .excel-actions label { background: #4b5563; display: inline-block; }
         .excel-actions input[type="file"] { display: none; }
-        .stock-table-wrapper { overflow-x: auto; padding: 0 20px 20px 20px; max-height: 400px; overflow-y: auto; }
+        .memory-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: #e9e7fd;
+            padding: 6px 12px;
+            border-radius: 40px;
+        }
+        .memory-actions button {
+            background: #6d28d9;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 30px;
+            color: white;
+            font-size: 0.7rem;
+            cursor: pointer;
+        }
+        .stock-table-wrapper { overflow-x: auto; padding: 0 20px 20px 20px; max-height: 380px; overflow-y: auto; }
         .stock-table { width: 100%; border-collapse: collapse; }
         .stock-table th, .stock-table td { padding: 10px 6px; text-align: left; border-bottom: 1px solid #edf2f7; font-size: 0.85rem; }
         .stock-badge { background: #e0f2e9; padding: 4px 10px; border-radius: 30px; font-weight: 600; }
@@ -230,22 +241,33 @@
             .two-columns { grid-template-columns: 1fr; }
         }
         button { cursor: pointer; }
+        .storage-warning {
+            font-size: 0.7rem;
+            color: #b45309;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
 <div class="dashboard">
     <div class="header">
-        <h1>🏪 KiosKu Pro <span class="badge-pro">Excel + Laba</span></h1>
+        <h1>🏪 KiosKu Pro <span class="badge-pro">Persistent Storage</span></h1>
         <div class="date-time" id="liveDateTime"></div>
     </div>
 
-    <!-- Kartu Metrik Keuangan -->
+    <!-- Kartu Metrik Keuangan + Memory -->
     <div class="summary-cards">
         <div class="card card-1"><div class="card-title">💰 TOTAL NILAI STOK (HARGA MODAL)</div><div class="card-value" id="totalStockValueModal">Rp 0</div><div class="card-sub">Berdasarkan harga beli (modal)</div></div>
         <div class="card card-2"><div class="card-title">📈 OMSET (Penjualan Kotor)</div><div class="card-value" id="totalOmset">Rp 0</div><div class="card-sub">Akumulasi dari semua transaksi</div></div>
         <div class="card card-3"><div class="card-title">🏆 LABA BERSIH</div><div class="card-value" id="totalLaba">Rp 0</div><div class="card-sub">Omset - HPP (Modal barang terjual)</div></div>
         <div class="card card-4"><div class="card-title">🧾 TOTAL TRANSAKSI</div><div class="card-value" id="totalTransaksi">0</div><div class="card-sub">Jumlah kali checkout sukses</div></div>
         <div class="card card-5"><div class="card-title">📦 ITEM TERJUAL</div><div class="card-value" id="totalItemTerjual">0</div><div class="card-sub">Keseluruhan unit laku</div></div>
+        <div class="card card-memory" id="memoryCard">
+            <div class="card-title">💾 MEMORY TERPAKAI (LocalStorage)</div>
+            <div class="card-value" id="memoryUsage">0 KB</div>
+            <div class="card-sub" id="memoryPercent">0% dari ~5MB - 10MB kuota</div>
+            <div class="storage-warning" id="storageWarning"></div>
+        </div>
     </div>
 
     <div class="two-columns">
@@ -273,9 +295,9 @@
             </div>
         </div>
 
-        <!-- Sisi KANAN: MANAJEMEN STOK + UPLOAD/DOWNLOAD EXCEL -->
+        <!-- Sisi KANAN: MANAJEMEN STOK + EXCEL + MEMORY CONTROL -->
         <div class="stok-panel">
-            <div class="panel-title">📦 DAFTAR BARANG (Modal + Jual) & Excel</div>
+            <div class="panel-title">📦 DAFTAR BARANG (Modal + Jual) & Penyimpanan</div>
             <div class="stok-header">
                 <div class="add-stock-form">
                     <input type="text" id="newItemName" placeholder="Nama barang">
@@ -284,10 +306,16 @@
                     <input type="number" id="newItemStock" placeholder="Stok awal" value="1" min="0">
                     <button class="btn-small" id="addNewProductBtn">➕ Tambah</button>
                 </div>
-                <div class="excel-actions">
-                    <button id="exportExcelBtn">📎 Download Excel (Stok)</button>
-                    <label for="uploadExcel">📂 Upload Excel & Ganti Stok</label>
-                    <input type="file" id="uploadExcel" accept=".xlsx, .xls, .csv">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <div class="excel-actions">
+                        <button id="exportExcelBtn">📎 Download Excel</button>
+                        <label for="uploadExcel">📂 Upload Excel</label>
+                        <input type="file" id="uploadExcel" accept=".xlsx, .xls, .csv">
+                    </div>
+                    <div class="memory-actions">
+                        <button id="resetStorageBtn" title="Reset semua data (stok, statistik) ke default">🔄 Reset Data</button>
+                        <button id="saveNowBtn" title="Simpan keadaan saat ini ke memori">💾 Simpan Sekarang</button>
+                    </div>
                 </div>
             </div>
             <div class="stock-table-wrapper">
@@ -297,45 +325,135 @@
                 </table>
             </div>
             <div class="info-note">
-                💡 Fitur Excel: Download template stok (nama, modal, harga jual, stok). Upload file akan mengganti seluruh data stok. Statistik transaksi dan riwayat tidak hilang.
+                💾 Data secara otomatis tersimpan ke LocalStorage setiap perubahan (stok, transaksi, produk). 
+                Tekan "Reset Data" untuk kembali ke awal. "Simpan Sekarang" memaksa penyimpanan. Ukuran memori ditampilkan diatas.
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // ---------- DATA PRODUK (HARGA MODAL & JUAL) ----------
-    let products = [
+    // ---------- KEY STORAGE ----------
+    const STORAGE_KEYS = {
+        PRODUCTS: 'kiosku_products',
+        STATS: 'kiosku_stats'
+    };
+
+    // ---------- DATA DEFAULT ----------
+    const defaultProducts = [
         { id: "p1", name: "Indomie Goreng", modal: 2800, price: 3500, stock: 12 },
         { id: "p2", name: "Aqua 600ml", modal: 2400, price: 3000, stock: 20 },
         { id: "p3", name: "Roti Tawar", modal: 9000, price: 12000, stock: 5 },
         { id: "p4", name: "Kopi Kapal Api", modal: 1800, price: 2500, stock: 30 },
         { id: "p5", name: "Sabun Mandi", modal: 4200, price: 5500, stock: 8 }
     ];
-
-    // Statistik laporan (omset, laba, transaksi, item terjual)
-    let stats = {
+    const defaultStats = {
         omsetTotal: 0,
         labaBersih: 0,
         totalTransaksi: 0,
         totalItemTerjual: 0
     };
 
-    let cart = []; // { productId, name, modal, price, quantity }
+    // Data runtime
+    let products = [];
+    let stats = {};
+    let cart = [];
 
-    // Helper
+    // ----- Helper Storage -----
+    function saveToLocalStorage() {
+        try {
+            localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+            localStorage.setItem(STORAGE_KEYS.STATS, JSON.stringify(stats));
+            updateMemoryDisplay();
+            return true;
+        } catch (e) {
+            console.error("Gagal simpan ke localStorage", e);
+            alert("Peringatan: Penyimpanan gagal, mungkin kuota penuh!");
+            updateMemoryDisplay();
+            return false;
+        }
+    }
+
+    function loadFromLocalStorage() {
+        const storedProducts = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
+        const storedStats = localStorage.getItem(STORAGE_KEYS.STATS);
+        if (storedProducts) {
+            try {
+                products = JSON.parse(storedProducts);
+                // pastikan setiap produk punya field id & modal (jika tidak ada dari versi lama)
+                if (!products.length) products = [...defaultProducts];
+                else {
+                    // validasi minor: setiap produk harus punya properti modal, price, stock, id
+                    products = products.filter(p => p.name && typeof p.modal === 'number' && typeof p.price === 'number');
+                    if (products.length === 0) products = [...defaultProducts];
+                }
+            } catch(e) { products = [...defaultProducts]; }
+        } else {
+            products = [...defaultProducts];
+        }
+        if (storedStats) {
+            try {
+                stats = JSON.parse(storedStats);
+                if (typeof stats.omsetTotal !== 'number') stats.omsetTotal = 0;
+                if (typeof stats.labaBersih !== 'number') stats.labaBersih = 0;
+                if (typeof stats.totalTransaksi !== 'number') stats.totalTransaksi = 0;
+                if (typeof stats.totalItemTerjual !== 'number') stats.totalItemTerjual = 0;
+            } catch(e) { stats = { ...defaultStats }; }
+        } else {
+            stats = { ...defaultStats };
+        }
+        // bersihkan cart karena bisa saja ID berubah
+        cart = [];
+    }
+
+    // Update tampilan memory usage (LocalStorage size)
+    function updateMemoryDisplay() {
+        let total = 0;
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            const val = localStorage.getItem(key);
+            if (val) total += val.length * 2; // perkiraan UTF-16 2 bytes
+        }
+        const kb = (total / 1024).toFixed(2);
+        const mb = (total / (1024 * 1024)).toFixed(2);
+        const percent = ((total / (5 * 1024 * 1024)) * 100).toFixed(1); // estimasi batas umum 5MB awal
+        document.getElementById('memoryUsage').innerHTML = `${kb} KB (${mb} MB)`;
+        document.getElementById('memoryPercent').innerHTML = `~${percent}% dari kuota (biasa 5-10MB)`;
+        const warningSpan = document.getElementById('storageWarning');
+        if (total > 4.5 * 1024 * 1024) warningSpan.innerText = "⚠️ Memori mendekati batas! Hapus data tidak perlu atau reset.";
+        else warningSpan.innerText = "✅ Data tersimpan secara lokal di browser Anda.";
+    }
+
+    // Reset semua data ke default (bersihkan storage)
+    function resetAllData() {
+        if (confirm("RESET TOTAL: Semua data stok, statistik omset/laba, dan transaksi akan dihapus permanen. Kembali ke data awal. Lanjutkan?")) {
+            products = JSON.parse(JSON.stringify(defaultProducts));
+            stats = JSON.parse(JSON.stringify(defaultStats));
+            cart = [];
+            saveToLocalStorage();
+            renderAll();
+            alert("Data telah direset ke default. Memori dibersihkan.");
+        }
+    }
+
+    // Force save manual
+    function forceSave() {
+        if (saveToLocalStorage()) alert("Data saat ini disimpan ke memori browser.");
+        else alert("Gagal menyimpan! periksa kuota storage.");
+    }
+
+    // ----- LOGIKA BISNIS SAMA SEPERTI SEBELUMNYA (dengan penambahan auto-save) -----
     function generateId() { return 'prod_' + Date.now() + '_' + Math.floor(Math.random() * 10000); }
 
-    // Render All UI
     function renderAll() {
         renderProductSelect();
         renderStockTable();
         renderCartTable();
         updateCartTotal();
         updateFinancialStats();
+        saveToLocalStorage(); // setiap perubahan UI akan auto simpan
     }
 
-    // Dropdown pilih barang
     function renderProductSelect() {
         const select = document.getElementById('productSelect');
         select.innerHTML = '<option value="">-- Pilih Barang --</option>';
@@ -343,15 +461,11 @@
             const option = document.createElement('option');
             option.value = prod.id;
             option.textContent = `${prod.name} | Jual: Rp${prod.price.toLocaleString()} | Stok:${prod.stock}`;
-            if (prod.stock <= 0) {
-                option.disabled = true;
-                option.textContent += ' (Habis)';
-            }
+            if (prod.stock <= 0) { option.disabled = true; option.textContent += ' (Habis)'; }
             select.appendChild(option);
         });
     }
 
-    // Tabel stok (menampilkan modal, harga jual, stok)
     function renderStockTable() {
         const tbody = document.getElementById('stockBody');
         if (!tbody) return;
@@ -369,12 +483,12 @@
             stockCell.appendChild(stockSpan);
             const actionCell = row.insertCell(4);
             const btnInc = document.createElement('button'); btnInc.innerText = '+ Stok'; btnInc.className = 'btn-stock-act';
-            btnInc.onclick = () => adjustStock(prod.id, 1);
+            btnInc.onclick = () => { adjustStock(prod.id, 1); };
             const btnDec = document.createElement('button'); btnDec.innerText = '- Stok'; btnDec.className = 'btn-stock-act';
-            btnDec.onclick = () => adjustStock(prod.id, -1);
+            btnDec.onclick = () => { adjustStock(prod.id, -1); };
             const btnDel = document.createElement('button'); btnDel.innerText = 'Hapus'; btnDel.className = 'btn-stock-act btn-delete';
-            btnDel.onclick = () => deleteProduct(prod.id);
-            actionCell.appendChild(btnInc); actionCell.appendChild(btnDec); actionCell.appendChild(btnDel);
+            btnDel.onclick = () => { deleteProduct(prod.id); };
+            actionCell.append(btnInc, btnDec, btnDel);
         });
     }
 
@@ -402,10 +516,10 @@
         const price = parseInt(document.getElementById('newItemPrice').value);
         const stock = parseInt(document.getElementById('newItemStock').value);
         if (!name) { alert('Nama barang harus diisi'); return; }
-        if (isNaN(modal) || modal < 0) { alert('Harga modal harus angka >=0'); return; }
-        if (isNaN(price) || price < 0) { alert('Harga jual harus angka >=0'); return; }
-        if (isNaN(stock) || stock < 0) { alert('Stok harus angka >=0'); return; }
-        if (modal > price) alert('⚠️ Harga modal lebih besar dari harga jual, potensi rugi!');
+        if (isNaN(modal) || modal < 0) { alert('Harga modal >=0'); return; }
+        if (isNaN(price) || price < 0) { alert('Harga jual >=0'); return; }
+        if (isNaN(stock) || stock < 0) { alert('Stok >=0'); return; }
+        if (modal > price) alert('⚠️ Harga modal lebih besar dari harga jual');
         const newId = generateId();
         products.push({ id: newId, name, modal, price, stock });
         document.getElementById('newItemName').value = '';
@@ -450,6 +564,7 @@
         document.getElementById('qtyInput').value = '1';
         renderCartTable();
         updateCartTotal();
+        saveToLocalStorage();
     }
 
     function renderCartTable() {
@@ -486,6 +601,7 @@
         item.quantity = newQty;
         renderCartTable();
         updateCartTotal();
+        saveToLocalStorage();
     }
 
     function updateCartTotal() {
@@ -498,7 +614,7 @@
         for (let item of cart) {
             const prod = products.find(p => p.id === item.productId);
             if (!prod || prod.stock < item.quantity) {
-                alert(`Stok untuk ${item.name} tidak mencukupi. Periksa kembali.`);
+                alert(`Stok untuk ${item.name} tidak mencukupi.`);
                 validateCartAgainstStock();
                 renderAll();
                 return;
@@ -532,17 +648,14 @@
         document.getElementById('totalItemTerjual').innerText = stats.totalItemTerjual;
     }
 
-    // ========== FUNGSI EXCEL ==========
+    // Excel
     function exportToExcel() {
-        // Konversi data products ke format worksheet: Nama, Modal, Harga Jual, Stok
-        const worksheetData = [["Nama Barang", "Harga Modal", "Harga Jual", "Stok"]];
-        products.forEach(prod => {
-            worksheetData.push([prod.name, prod.modal, prod.price, prod.stock]);
-        });
-        const ws = XLSX.utils.aoa_to_sheet(worksheetData);
+        const wsData = [["Nama Barang", "Harga Modal", "Harga Jual", "Stok"]];
+        products.forEach(p => wsData.push([p.name, p.modal, p.price, p.stock]));
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "DataStok");
-        XLSX.writeFile(wb, `Stok_Kios_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`);
+        XLSX.writeFile(wb, `Stok_Kios_${Date.now()}.xlsx`);
     }
 
     function importExcel(file) {
@@ -550,49 +663,37 @@
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
-            if (!rows || rows.length < 2) { alert("File kosong atau tidak valid"); return; }
-            // Baris pertama header: "Nama Barang", "Harga Modal", "Harga Jual", "Stok" (case-insensitive, urutan bebas? kita pakai indeks 0,1,2,3)
-            // Asumsikan kolom: 0=Nama, 1=Modal, 2=HargaJual, 3=Stok
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+            if (!rows || rows.length < 2) { alert("File kosong"); return; }
             const newProducts = [];
-            for (let i = 1; i < rows.length; i++) {
+            for (let i=1; i<rows.length; i++) {
                 const row = rows[i];
                 if (!row || row.length < 4) continue;
                 const name = row[0] ? String(row[0]).trim() : "";
                 const modal = parseFloat(row[1]);
                 const price = parseFloat(row[2]);
                 const stock = parseInt(row[3]);
-                if (name === "") continue;
-                if (isNaN(modal) || isNaN(price) || isNaN(stock)) {
-                    alert(`Baris ke-${i+1} tidak valid, pastikan kolom angka. Lewati.`);
-                    continue;
+                if (name && !isNaN(modal) && !isNaN(price) && !isNaN(stock)) {
+                    newProducts.push({ id: generateId(), name, modal, price, stock: Math.max(0,stock) });
                 }
-                newProducts.push({
-                    id: generateId(),
-                    name: name,
-                    modal: modal,
-                    price: price,
-                    stock: Math.max(0, stock)
-                });
             }
-            if (newProducts.length === 0) { alert("Tidak ada data valid yang diimpor."); return; }
-            // Konfirmasi penggantian total stok (statistik transaksi tetap)
-            if (confirm(`Import ${newProducts.length} barang? Data stok saat ini akan diganti total. (Transaksi & laporan tidak hilang)`)) {
+            if (newProducts.length === 0) { alert("Tidak ada data valid"); return; }
+            if (confirm(`Import ${newProducts.length} barang? Seluruh stok saat ini akan diganti.`)) {
                 products = newProducts;
-                // Bersihkan keranjang karena ID produk berubah total
                 cart = [];
                 renderAll();
-                alert("Import berhasil! Seluruh stok telah diganti.");
+                alert("Import berhasil!");
             }
         };
-        reader.onerror = () => alert("Gagal membaca file");
         reader.readAsArrayBuffer(file);
     }
 
-    // Event & init
+    // Event dan init
     document.addEventListener('DOMContentLoaded', () => {
+        loadFromLocalStorage();
         renderAll();
+        updateMemoryDisplay();
         setInterval(() => {
             const now = new Date();
             document.getElementById('liveDateTime').innerText = now.toLocaleDateString('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
@@ -601,11 +702,10 @@
         document.getElementById('checkoutBtn').addEventListener('click', checkout);
         document.getElementById('addNewProductBtn').addEventListener('click', addNewProduct);
         document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
+        document.getElementById('resetStorageBtn').addEventListener('click', resetAllData);
+        document.getElementById('saveNowBtn').addEventListener('click', forceSave);
         const fileInput = document.getElementById('uploadExcel');
-        fileInput.addEventListener('change', (e) => {
-            if (fileInput.files.length > 0) importExcel(fileInput.files[0]);
-            fileInput.value = '';
-        });
+        fileInput.addEventListener('change', (e) => { if (fileInput.files.length) importExcel(fileInput.files[0]); fileInput.value = ''; });
     });
 </script>
 </body>
